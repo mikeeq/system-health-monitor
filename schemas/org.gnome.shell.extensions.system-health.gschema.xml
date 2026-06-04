@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.system-health"
+          path="/org/gnome/shell/extensions/system-health/">
+
+    <key name="show-cpu-clock" type="b">
+      <default>true</default>
+      <summary>Show CPU clock speed</summary>
+      <description>Display average CPU clock frequency in the top bar.</description>
+    </key>
+
+    <key name="show-cpu-temp" type="b">
+      <default>true</default>
+      <summary>Show CPU temperature</summary>
+      <description>Display CPU temperature (Tctl) in the top bar.</description>
+    </key>
+
+    <key name="show-cpu-usage" type="b">
+      <default>true</default>
+      <summary>Show CPU usage</summary>
+      <description>Display CPU usage percentage in the top bar.</description>
+    </key>
+
+    <key name="show-gpu-clock" type="b">
+      <default>true</default>
+      <summary>Show GPU clock speed</summary>
+      <description>Display AMD GPU shader clock (sclk) in the top bar.</description>
+    </key>
+
+    <key name="show-gpu-vram" type="b">
+      <default>true</default>
+      <summary>Show GPU VRAM usage</summary>
+      <description>Display AMD GPU VRAM used/total in the top bar.</description>
+    </key>
+
+    <key name="show-gpu-temp" type="b">
+      <default>true</default>
+      <summary>Show GPU temperature</summary>
+      <description>Display AMD GPU edge temperature in the top bar.</description>
+    </key>
+
+    <key name="show-gpu-usage" type="b">
+      <default>true</default>
+      <summary>Show GPU usage</summary>
+      <description>Display AMD GPU busy percentage in the top bar.</description>
+    </key>
+
+    <key name="show-gpu-power" type="b">
+      <default>true</default>
+      <summary>Show GPU power consumption</summary>
+      <description>Display AMD GPU power current/cap in the top bar.</description>
+    </key>
+
+    <key name="show-ram-usage" type="b">
+      <default>true</default>
+      <summary>Show RAM usage</summary>
+      <description>Display RAM used/total in the top bar.</description>
+    </key>
+
+    <key name="show-load-1m" type="b">
+      <default>true</default>
+      <summary>Show 1-minute load average</summary>
+      <description>Display the 1-minute system load average in the top bar.</description>
+    </key>
+
+    <key name="show-net-rx" type="b">
+      <default>true</default>
+      <summary>Show network download speed</summary>
+      <description>Display total network receive speed across all interfaces in the top bar.</description>
+    </key>
+
+    <key name="show-net-tx" type="b">
+      <default>true</default>
+      <summary>Show network upload speed</summary>
+      <description>Display total network transmit speed across all interfaces in the top bar.</description>
+    </key>
+
+  </schema>
+</schemalist>

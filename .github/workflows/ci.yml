@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  lint-and-validate:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate metadata.json
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+
+          with open("metadata.json") as f:
+              meta = json.load(f)
+
+          required = ["name", "description", "uuid", "version", "shell-version"]
+          missing = [k for k in required if k not in meta]
+          if missing:
+              print(f"ERROR: metadata.json missing keys: {missing}", file=sys.stderr)
+              sys.exit(1)
+
+          uuid = meta["uuid"]
+          if not ("@" in uuid and "." in uuid.split("@", 1)[1]):
+              print(f"ERROR: UUID '{uuid}' must be in 'name@domain.tld' format", file=sys.stderr)
+              sys.exit(1)
+
+          version = meta["version"]
+          if not isinstance(version, int) or version < 1:
+              print("ERROR: version must be a positive integer", file=sys.stderr)
+              sys.exit(1)
+
+          print(f"OK: uuid={uuid}  version={version}  shells={meta['shell-version']}")
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Build inside Docker (same environment as local dev)
+      # -----------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: gnome-health-build:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build extension zip via Docker
+        run: |
+          docker run --rm \
+            -v "$PWD:/build" \
+            -w /build \
+            gnome-health-build:ci \
+            bash build.sh
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: dist/*.zip
+          if-no-files-found: error
