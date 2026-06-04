@@ -90,19 +90,78 @@ function _fmtBytes(bps) {
 // ---------------------------------------------------------------------------
 
 const METRICS_DEF = [
-    { id: 'cpu_clock', label: 'CPU Clock',  key: 'show-cpu-clock' },
-    { id: 'cpu_temp',  label: 'CPU Temp',   key: 'show-cpu-temp'  },
-    { id: 'cpu_usage', label: 'CPU Usage',  key: 'show-cpu-usage' },
-    { id: 'gpu_clock', label: 'GPU Clock',  key: 'show-gpu-clock' },
-    { id: 'gpu_vram',  label: 'GPU VRAM',   key: 'show-gpu-vram'  },
-    { id: 'gpu_temp',  label: 'GPU Temp',   key: 'show-gpu-temp'  },
-    { id: 'gpu_usage', label: 'GPU Usage',  key: 'show-gpu-usage' },
-    { id: 'gpu_power', label: 'GPU Power',  key: 'show-gpu-power' },
-    { id: 'ram_usage', label: 'RAM',        key: 'show-ram-usage' },
-    { id: 'load_1m',   label: 'Load 1m',   key: 'show-load-1m'   },
-    { id: 'net_rx',    label: 'Net Down',   key: 'show-net-rx'    },
-    { id: 'net_tx',    label: 'Net Up',     key: 'show-net-tx'    },
+    { id: 'cpu_clock', label: 'Clock',        key: 'show-cpu-clock', group: 'CPU'     },
+    { id: 'cpu_temp',  label: 'Temperature',  key: 'show-cpu-temp',  group: 'CPU'     },
+    { id: 'cpu_usage', label: 'Usage',        key: 'show-cpu-usage', group: 'CPU'     },
+    { id: 'gpu_clock', label: 'Clock',        key: 'show-gpu-clock', group: 'GPU'     },
+    { id: 'gpu_vram',  label: 'VRAM',         key: 'show-gpu-vram',  group: 'GPU'     },
+    { id: 'gpu_temp',  label: 'Temperature',  key: 'show-gpu-temp',  group: 'GPU'     },
+    { id: 'gpu_usage', label: 'Usage',        key: 'show-gpu-usage', group: 'GPU'     },
+    { id: 'gpu_power', label: 'Power',        key: 'show-gpu-power', group: 'GPU'     },
+    { id: 'ram_usage', label: 'Usage',        key: 'show-ram-usage', group: 'Memory'  },
+    { id: 'load_1m',   label: '1 min',        key: 'show-load-1m',   group: 'System'  },
+    { id: 'net_rx',    label: 'Download',     key: 'show-net-rx',    group: 'Network' },
+    { id: 'net_tx',    label: 'Upload',       key: 'show-net-tx',    group: 'Network' },
 ];
+
+// ---------------------------------------------------------------------------
+// Custom sensor menu item  (icon + label left, monospace value right)
+// ---------------------------------------------------------------------------
+
+const SensorMenuItem = GObject.registerClass({
+    Signals: {
+        'sensor-toggled': { param_types: [GObject.TYPE_BOOLEAN] },
+    },
+}, class SensorMenuItem extends PopupMenu.PopupBaseMenuItem {
+
+    _init(label, value, active) {
+        super._init({ reactive: true });
+        this._active = active;
+        this._updateOrnament();
+
+        this._labelActor = new St.Label({
+            text: label,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this.add_child(this._labelActor);
+
+        this._valueLabel = new St.Label({
+            text: value,
+            y_align: Clutter.ActorAlign.CENTER,
+            style_class: 'system-health-value',
+        });
+        this._valueLabel.set_x_align(Clutter.ActorAlign.END);
+        this._valueLabel.set_x_expand(true);
+        this.add_child(this._valueLabel);
+    }
+
+    // Toggle active state on click without closing the menu
+    activate(_event) {
+        this._active = !this._active;
+        this._updateOrnament();
+        this.emit('sensor-toggled', this._active);
+    }
+
+    setActive(active) {
+        if (this._active !== active) {
+            this._active = active;
+            this._updateOrnament();
+        }
+    }
+
+    setValue(text) {
+        this._valueLabel.text = text;
+    }
+
+    // Expose label widget (used by PopupMenu internals for focus)
+    get label() {
+        return this._labelActor;
+    }
+
+    _updateOrnament() {
+        this.setOrnament(this._active ? PopupMenu.Ornament.CHECK : PopupMenu.Ornament.NONE);
+    }
+});
 
 // ---------------------------------------------------------------------------
 // Panel indicator
@@ -135,12 +194,12 @@ class SysHealthIndicator extends PanelMenu.Button {
         // Build dropdown menu with per-metric toggles
         this._buildMenu();
 
-        // Connect GSettings change signals to keep switch states and panel in sync
+        // Connect GSettings change signals to keep check states and panel in sync
         for (const def of METRICS_DEF) {
             const id = this._settings.connect(`changed::${def.key}`, () => {
                 const item = this._menuItems[def.id];
                 if (item)
-                    item.setToggleState(this._settings.get_boolean(def.key));
+                    item.setActive(this._settings.get_boolean(def.key));
                 this._updatePanelLabel();
             });
             this._settingsHandlerIds.push(id);
@@ -160,35 +219,41 @@ class SysHealthIndicator extends PanelMenu.Button {
     // -----------------------------------------------------------------------
 
     _buildMenu() {
-        const headerItem = new PopupMenu.PopupMenuItem('System Health', { reactive: false });
-        headerItem.label.add_style_class_name('popup-menu-item-inactive');
+        // Title row
+        const headerItem = new PopupMenu.PopupMenuItem('System Health Monitor', { reactive: false });
+        headerItem.label.set_style('font-weight: bold; padding: 2px 0;');
         this.menu.addMenuItem(headerItem);
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        const TOP_LABELS = {
+        const TOP_SUBTITLES = {
             cpu_usage: 'Top CPU Processes',
             gpu_vram:  'Top VRAM Processes',
             ram_usage: 'Top RAM Processes',
         };
 
+        let lastGroup = null;
         for (const def of METRICS_DEF) {
+            // Emit a labelled separator whenever the group changes
+            if (def.group !== lastGroup) {
+                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem(def.group));
+                lastGroup = def.group;
+            }
+
             const active = this._settings.get_boolean(def.key);
-            const item = new PopupMenu.PopupSwitchMenuItem(
-                `${def.label}: …`, active
-            );
-            item.connect('toggled', (_item, state) => {
+            const item = new SensorMenuItem(def.label, '…', active);
+            item.connect('sensor-toggled', (_item, state) => {
                 this._settings.set_boolean(def.key, state);
                 this._updatePanelLabel();
             });
             this._menuItems[def.id] = item;
             this.menu.addMenuItem(item);
 
-            if (def.id in TOP_LABELS) {
-                const sub = new PopupMenu.PopupSubMenuMenuItem(TOP_LABELS[def.id]);
-                sub.label.set_style('font-size: 11px; color: #aaa;');
+            // Top-process sub-menu after the relevant toggle
+            if (def.id in TOP_SUBTITLES) {
+                const sub = new PopupMenu.PopupSubMenuMenuItem(TOP_SUBTITLES[def.id]);
+                sub.label.set_style('font-size: 11px;');
                 for (let i = 0; i < 5; i++) {
                     const entry = new PopupMenu.PopupMenuItem('—', { reactive: false });
-                    entry.label.set_style('font-family: monospace; font-size: 11px;');
+                    entry.label.set_style_class_name('system-health-process-row');
                     sub.menu.addMenuItem(entry);
                 }
                 this._topSubmenus[def.id] = sub;
@@ -482,25 +547,25 @@ class SysHealthIndicator extends PanelMenu.Button {
         const m = this._readMetrics();
         this._metrics = m;
 
-        // Update menu item labels (show current value next to each toggle)
-        const menuText = {
-            cpu_clock: m.cpu_clock_long ? `CPU Clock: ${m.cpu_clock_long}` : 'CPU Clock: N/A',
-            cpu_temp:  m.cpu_temp_long  ? `CPU Temp: ${m.cpu_temp_long}`   : 'CPU Temp: N/A',
-            cpu_usage: m.cpu_usage_long ? `CPU Usage: ${m.cpu_usage_long}` : 'CPU Usage: N/A',
-            gpu_clock: m.gpu_clock_long ? `GPU Clock: ${m.gpu_clock_long}` : 'GPU Clock: N/A',
-            gpu_vram:  m.gpu_vram_long  ? `GPU VRAM: ${m.gpu_vram_long}`   : 'GPU VRAM: N/A',
-            gpu_temp:  m.gpu_temp_long  ? `GPU Temp: ${m.gpu_temp_long}`   : 'GPU Temp: N/A',
-            gpu_usage: m.gpu_usage_long ? `GPU Usage: ${m.gpu_usage_long}` : 'GPU Usage: N/A',
-            gpu_power: m.gpu_power_long ? `GPU Power: ${m.gpu_power_long}` : 'GPU Power: N/A',
-            ram_usage: m.ram_usage_long ? `RAM: ${m.ram_usage_long}`       : 'RAM: N/A',
-            load_1m:   m.load_1m_long   ? `Load 1m: ${m.load_1m_long}`    : 'Load 1m: N/A',
-            net_rx:    m.net_rx_long    ? `Net Down: ${m.net_rx_long}`     : 'Net Down: N/A',
-            net_tx:    m.net_tx_long    ? `Net Up: ${m.net_tx_long}`       : 'Net Up: N/A',
+        // Update the right-hand value label of each sensor row
+        const menuValues = {
+            cpu_clock: m.cpu_clock_long  ?? '–',
+            cpu_temp:  m.cpu_temp_long   ?? '–',
+            cpu_usage: m.cpu_usage_long  ?? '–',
+            gpu_clock: m.gpu_clock_long  ?? '–',
+            gpu_vram:  m.gpu_vram_long   ?? '–',
+            gpu_temp:  m.gpu_temp_long   ?? '–',
+            gpu_usage: m.gpu_usage_long  ?? '–',
+            gpu_power: m.gpu_power_long  ?? '–',
+            ram_usage: m.ram_usage_long  ?? '–',
+            load_1m:   m.load_1m_long    ?? '–',
+            net_rx:    m.net_rx_long     ?? '–',
+            net_tx:    m.net_tx_long     ?? '–',
         };
 
         for (const def of METRICS_DEF) {
             const item = this._menuItems[def.id];
-            if (item) item.label.text = menuText[def.id];
+            if (item) item.setValue(menuValues[def.id]);
         }
 
         this._updatePanelLabel();
