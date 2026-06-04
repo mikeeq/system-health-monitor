@@ -1,0 +1,62 @@
+repos:
+  # ---------------------------------------------------------------------------
+  # General file hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-json
+        files: metadata\.json$
+      - id: check-yaml
+        files: \.github/workflows/.*\.yml$
+      - id: check-xml
+        files: schemas/.*\.xml$
+
+  # ---------------------------------------------------------------------------
+  # Shell scripts (build.sh, install.sh)
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        files: \.(sh)$
+        args: [--severity=warning]
+
+  # ---------------------------------------------------------------------------
+  # JavaScript syntax check (ESM — no transpilation needed)
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: node-check-extension
+        name: JS syntax check (extension.js)
+        language: system
+        entry: node --check
+        files: ^extension\.js$
+        types: [javascript]
+
+      - id: node-check-prefs
+        name: JS syntax check (prefs.js)
+        language: system
+        entry: node --check
+        files: ^prefs\.js$
+        types: [javascript]
+
+  # ---------------------------------------------------------------------------
+  # GSettings schema compilation check
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: glib-compile-schemas
+        name: Compile GSettings schema
+        language: system
+        entry: glib-compile-schemas
+        args: [schemas/]
+        files: schemas/.*\.xml$
+        pass_filenames: false

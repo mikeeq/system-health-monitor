@@ -1,0 +1,10 @@
+{
+  "name": "System Health Monitor",
+  "description": "Monitors AMD GPU (VRAM, temp, power), CPU (clock, usage, temp), RAM usage, and system load directly in the top bar. Click the indicator to toggle individual metrics.",
+  "uuid": "system-health-monitor@mikeeq.github.io",
+  "version": 1,
+  "shell-version": ["47", "48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.system-health",
+  "gettext-domain": "system-health-monitor",
+  "url": "https://github.com/mikeeq/gnome-shell-extension-system-health"
+}

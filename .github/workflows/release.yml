@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*"   # triggers on v1, v2.0, v1.2.3, etc.
+
+permissions:
+  contents: write   # needed to create GitHub Releases
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # Bump version in metadata.json to match the tag number
+      # (tag v3 → version 3;  tag v1.2.3 → uses only the major: 1)
+      # -----------------------------------------------------------------------
+      - name: Sync metadata version with tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"          # e.g. v3 or v1.2.3
+          VER=$(echo "$TAG" | grep -oP '^v?\K\d+')
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+          python3 - "$VER" <<'EOF'
+          import json, sys
+          ver = int(sys.argv[1])
+          with open("metadata.json") as f:
+              meta = json.load(f)
+          meta["version"] = ver
+          with open("metadata.json", "w") as f:
+              json.dump(meta, f, indent=2)
+          print(f"Set version = {ver}")
+          EOF
+
+      # -----------------------------------------------------------------------
+      # Build inside Docker (same environment as local dev)
+      # -----------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: gnome-health-build:release
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build extension zip via Docker
+        run: |
+          docker run --rm \
+            -v "$PWD:/build" \
+            -w /build \
+            gnome-health-build:release \
+            bash build.sh
+
+      - name: Get zip path
+        id: zip
+        run: echo "path=$(ls dist/*.zip)" >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # Create GitHub Release and attach the zip
+      # -----------------------------------------------------------------------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Release ${{ steps.version.outputs.tag }}"
+          body: |
+            ## System Health Monitor ${{ steps.version.outputs.tag }}
+
+            ### Installation
+            Download the zip and extract it to:
+            ```
+            ~/.local/share/gnome-shell/extensions/system-health-monitor@mikeeq.github.io/
+            ```
+            Or install via [GNOME Extensions](https://extensions.gnome.org/).
+
+            ### Changelog
+            _See commit history for changes in this release._
+          files: ${{ steps.zip.outputs.path }}
+          fail_on_unmatched_files: true
